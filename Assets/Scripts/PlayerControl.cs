@@ -23,6 +23,8 @@ public class PlayerControl : MonoBehaviour {
 	
 	private int remainingJumps = 0;
 	
+	private Vector3 movementVelocity, movementAcceleration;
+	
 	private float upward = -4f;
 	
 	[Header("Juice")]
@@ -160,7 +162,9 @@ public class PlayerControl : MonoBehaviour {
 			Input.GetAxisRaw("Vertical")
 		).normalized;
 		
-		bool moving = !Mathf.Approximately(wasd.sqrMagnitude, 0f);
+		Vector2 acceleration = wasd;
+		
+		bool moving = !Mathf.Approximately(acceleration.sqrMagnitude, 0f);
 		
 		stretchAmount = Mathf.SmoothDamp(
 			stretchAmount, 0f,
@@ -260,8 +264,13 @@ public class PlayerControl : MonoBehaviour {
 		scalePivot.localScale = Vector3.LerpUnclamped(Vector3.one, stretchVector, stretchAmount);
 		rotationPivot.localEulerAngles = leanEulerRotation;
 		
+		Vector3 acceleration3 = new Vector3(acceleration.x, 0f, acceleration.y);
 		
-		Vector3 movement = new Vector3(wasd.x, 0f, wasd.y) * movementSpeed;
+		movementVelocity += acceleration3 * Time.deltaTime;
+		movementVelocity *= Mathf.Pow(0.9f, Time.deltaTime * 60f);
+		
+		// hack during development
+		Vector3 movement = movementVelocity * movementSpeed * (1f/.11f);
 		movement = transform.localRotation * movement;
 		if (grounded)
 			movement = AdjustVelocityToNormal(movement, normal, stolenSlopeLimit);
