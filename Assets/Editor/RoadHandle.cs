@@ -17,13 +17,16 @@ public class RoadHandle : Editor {
 		for (int i = 0; i < newNodes.Length; i++) {
 			Handles.color = Color.white;
 			newNodes[i].position = Handles.PositionHandle(newNodes[i].position + the.transform.position, Quaternion.identity) - the.transform.position;
-			newNodes[i].anchor1 = Handles.PositionHandle(newNodes[i].anchor1 + the.transform.position, Quaternion.identity) - the.transform.position;
-			newNodes[i].anchor2 = Handles.PositionHandle(newNodes[i].anchor2 + the.transform.position, Quaternion.identity) - the.transform.position;
 			
-			Handles.color = Color.cyan;
 			if (i < newNodes.Length - 1) {
+				newNodes[i].anchor1 = Handles.PositionHandle(newNodes[i].anchor1 + the.transform.position, Quaternion.identity) - the.transform.position;
+				newNodes[i].anchor2 = Handles.PositionHandle(newNodes[i].anchor2 + the.transform.position, Quaternion.identity) - the.transform.position;
+				
+				Handles.color = Color.cyan;
 				Handles.DrawLine(newNodes[i].position + the.transform.position, newNodes[i].anchor1 + the.transform.position);
 				Handles.DrawLine(newNodes[i].anchor2 + the.transform.position, newNodes[i + 1].position + the.transform.position);
+				
+				Handles.color = Color.yellow;
 				Handles.DrawLine(the.transform.position + newNodes[i].position, newNodes[i + 1].position + the.transform.position);
 			}
 			
@@ -43,7 +46,7 @@ public class RoadHandle : Editor {
 		}
 		
 		Vector3[] vertices = the.GetVertexArray();
-		const int iterations = 16;
+		int iterations = Mathf.Max(1, Mathf.Min(16, the.splineIterationsPerKnot));
 		var thing = Spline.CalculateSpline(the.splineType, vertices, iterations, ResultType.Position)
 			.Zip(Spline.CalculateSpline(the.splineType, vertices, iterations, ResultType.Tangent), (a, b) => (a, b));
 		
@@ -51,8 +54,18 @@ public class RoadHandle : Editor {
 		foreach ((Vector3 pos, Vector3 tan) in thing.Skip(1)) {
 			Handles.color = Color.white;
 			Handles.DrawLine(the.transform.position + lastPos, the.transform.position + pos);
-			Handles.color = Color.cyan;
-			Handles.DrawLine(the.transform.position + pos, the.transform.position + pos + tan);
+			// Handles.color = Color.cyan;
+			// Handles.DrawLine(the.transform.position + pos, the.transform.position + pos + tan);
+			
+			// visualize local rotation
+			Quaternion look = Quaternion.LookRotation(tan);
+			
+			Handles.color = Color.green;
+			Handles.DrawLine(the.transform.position + pos, the.transform.position + pos + (look * Vector3.up));
+			Handles.color = Color.red;
+			Handles.DrawLine(the.transform.position + pos, the.transform.position + pos + (look * Vector3.left  * the.roadWidth / 2));
+			Handles.DrawLine(the.transform.position + pos, the.transform.position + pos + (look * Vector3.right * the.roadWidth / 2));
+			
 			(lastPos, lastTan) = (pos, tan);
 		}
 		

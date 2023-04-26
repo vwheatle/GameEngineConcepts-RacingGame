@@ -18,6 +18,10 @@ public class RoadGenerator : MonoBehaviour {
 	public List<RoadNode> nodes = new List<RoadNode>();
 	
 	public SplineType splineType = SplineType.Bezier;
+	public int splineIterationsPerKnot = 32;
+	
+	public float roadWidth = 16f;
+	public float roadHeight = 6f;
 	
 	// cheap way to be able to make "button" (call stuff from inspector)
 	
@@ -60,7 +64,71 @@ public class RoadGenerator : MonoBehaviour {
 		MeshCollider meshCollider = GetComponent<MeshCollider>();
 		Mesh mesh = new Mesh();
 		
+		Vector3[] vertices = GetVertexArray();
 		
+		List<Vector3> meshVertices = new List<Vector3>();
+		List<int> meshIndices = new List<int>();
+		List<Vector3> meshNormals = new List<Vector3>();
+		List<Vector2> meshUVs = new List<Vector2>();
+		
+		meshIndices.Add(0);
+		meshIndices.Add(1);
+		meshIndices.Add(2);
+		
+		var thing = Spline.CalculateSpline(splineType, vertices, splineIterationsPerKnot, ResultType.Position)
+			.Zip(Spline.CalculateSpline(splineType, vertices, splineIterationsPerKnot, ResultType.Tangent), (a, b) => (a, b));
+		foreach ((Vector3 pos, Vector3 tan) in thing) {
+			int startIndex = meshVertices.Count - 3;
+			if (meshVertices.Count > 0) {
+				int[][] triangles = new int[][] {
+					new int[] { 0, 3, 1 }, // Top face
+					new int[] { 1, 3, 4 },
+					new int[] { 1, 4, 2 }, // Left face
+					new int[] { 2, 4, 5 },
+					new int[] { 0, 2, 3 }, // Right face
+					new int[] { 3, 2, 5 },
+				};
+				
+				foreach (int[] tri in triangles)
+					foreach (int i in tri)
+						meshIndices.Add(startIndex + i);
+			}
+			
+			// makes a quaternion such that
+			// look * Vector3.forward = tan
+			// and it'll always be up
+			Quaternion look = Quaternion.LookRotation(tan);
+			
+			meshVertices.Add(pos + (look * Vector3.left * roadWidth / 2));
+			meshVertices.Add(pos + (look * Vector3.right * roadWidth / 2));
+			meshVertices.Add(pos + (look * Vector3.down * roadHeight));
+			
+			Vector3 normal = look * Vector3.up;
+			meshNormals.Add(Vector3.Slerp(normal, look * Vector3.left, 0.1f));
+			meshNormals.Add(Vector3.Slerp(normal, look * Vector3.right, 0.1f));
+			meshNormals.Add(-normal);
+			
+			float v = (meshUVs.Count / 3) % 2;
+			meshUVs.Add(new Vector2(0f, v));
+			meshUVs.Add(new Vector2(1f, v));
+			meshUVs.Add(new Vector2(0.5f, v));
+		}
+		
+		{
+			int startIndex = meshVertices.Count - 3;
+			meshIndices.Add(startIndex + 2);
+			meshIndices.Add(startIndex + 1);
+			meshIndices.Add(startIndex + 0);
+		}
+		
+		// foreach (var v in meshVertices) Debug.Log(v);
+		// foreach (var v in meshIndices) Debug.Log(v);
+		
+		mesh.SetVertices(meshVertices);
+		mesh.SetUVs(0, meshUVs);
+		mesh.SetNormals(meshNormals);
+		// mesh.RecalculateNormals();
+		mesh.SetIndices(meshIndices, MeshTopology.Triangles, 0);
 		
 		meshFilter.mesh = mesh;
 		meshCollider.sharedMesh = mesh;
