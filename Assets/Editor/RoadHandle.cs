@@ -65,6 +65,8 @@ public class RoadHandle : Editor {
 			Handles.color = Color.red;
 			Handles.DrawLine(the.transform.position + pos, the.transform.position + pos + (look * Vector3.left  * the.roadWidth / 2));
 			Handles.DrawLine(the.transform.position + pos, the.transform.position + pos + (look * Vector3.right * the.roadWidth / 2));
+			Handles.color = Color.yellow;
+			Handles.DrawLine(the.transform.position + pos, the.transform.position + pos + (look * Vector3.down * the.roadHeight));
 			
 			(lastPos, lastTan) = (pos, tan);
 		}
