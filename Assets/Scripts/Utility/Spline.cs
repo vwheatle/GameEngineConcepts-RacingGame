@@ -34,12 +34,13 @@ public class Spline {
 		new float[] { -1/6f,  3/6f, -3/6f,  1/6f, },
 	};
 	
-	public static float[][] GetCharacteristicMatrix(SplineType type) {
+	public static ref readonly float[][] GetCharacteristicMatrix(SplineType type) {
 		switch (type) {
-			case SplineType.Bezier: return bezierMatrix;
-			// case SplineType.CatmullRom: return catmullRomMatrix;
-			case SplineType.BSpline: return bSplineMatrix;
-			default: return null; // please follow the types, ok?
+			case SplineType.Bezier: return ref bezierMatrix;
+			// case SplineType.CatmullRom: return ref catmullRomMatrix;
+			case SplineType.BSpline: return ref bSplineMatrix;
+			default: // please follow the types, ok?
+				throw new System.Exception("invalid splinetype");
 		}
 	}
 	

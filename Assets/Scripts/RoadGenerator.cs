@@ -10,7 +10,8 @@ public struct RoadNode {
 	public Vector3 position;
 	public Vector3 anchor1, anchor2;
 	public bool gap;
-	// note that the last node in a chain has its anchors unused.
+	// any node with the gap flag enabled has its anchors unused.
+	// TODO: have spline function join end to start when end's .gap is false..
 }
 
 public class RoadGenerator : MonoBehaviour {
@@ -19,6 +20,19 @@ public class RoadGenerator : MonoBehaviour {
 	public SplineType splineType = SplineType.Bezier;
 	
 	// cheap way to be able to make "button" (call stuff from inspector)
+	
+	[ContextMenu("Make Spline C^1 Continuous")]
+	void MakeC1Continuous() {
+		// this literally just makes all the joins into "mirrored" joins
+		// it just averages out the two you have after
+		//
+		// https://youtu.be/jvPPXbo87ds?t=1180
+		RoadNode[] theNodes = nodes.ToArray();
+		for (int i = 1; i < nodes.Count - 1; i++) {
+			theNodes[i].anchor1 = 2f * theNodes[i].position - theNodes[i - 1].anchor2;
+		}
+		nodes = new List<RoadNode>(theNodes);
+	}
 	
 	void Start() { GenerateRoad(); }
 	

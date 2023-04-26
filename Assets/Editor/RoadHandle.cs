@@ -24,7 +24,22 @@ public class RoadHandle : Editor {
 			if (i < newNodes.Length - 1) {
 				Handles.DrawLine(newNodes[i].position + the.transform.position, newNodes[i].anchor1 + the.transform.position);
 				Handles.DrawLine(newNodes[i].anchor2 + the.transform.position, newNodes[i + 1].position + the.transform.position);
+				Handles.DrawLine(the.transform.position + newNodes[i].position, newNodes[i + 1].position + the.transform.position);
 			}
+			
+			Handles.color = Color.green;
+			Handles.Label(newNodes[i].position + the.transform.position, i.ToString());
+			
+			if (i < newNodes.Length - 1) {
+				Handles.Label(newNodes[i].anchor1 + the.transform.position, $"{i}a1");
+				Handles.Label(newNodes[i].anchor2 + the.transform.position, $"{i}a2");
+			}
+		}
+		bool anything = EditorGUI.EndChangeCheck();
+		
+		if (anything) {
+			Undo.RecordObject(the, "Move Control Point");
+			the.nodes = new List<RoadNode>(newNodes);
 		}
 		
 		Vector3[] vertices = the.GetVertexArray();
@@ -41,11 +56,5 @@ public class RoadHandle : Editor {
 			(lastPos, lastTan) = (pos, tan);
 		}
 		
-		bool anything = EditorGUI.EndChangeCheck();
-		
-		if (anything) {
-			Undo.RecordObject(the, "Move Control Point");
-			the.nodes = new List<RoadNode>(newNodes);
-		}
 	}
 }
