@@ -2,20 +2,15 @@ using System.Linq;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEditor;
-
 
 [System.Serializable]
-public struct RoadNode {
+public struct RoadKnot {
 	public Vector3 position;
 	public Vector3 anchor1, anchor2;
-	public bool gap;
-	// any node with the gap flag enabled has its anchors unused.
-	// TODO: have spline function join end to start when end's .gap is false..
 }
 
 public class RoadGenerator : MonoBehaviour {
-	public List<RoadNode> nodes = new List<RoadNode>();
+	public List<RoadKnot> knots = new List<RoadKnot>();
 	
 	public SplineType splineType = SplineType.Bezier;
 	public int splineIterationsPerKnot = 32;
@@ -23,40 +18,47 @@ public class RoadGenerator : MonoBehaviour {
 	public float roadWidth = 16f;
 	public float roadHeight = 6f;
 	
-	// cheap way to be able to make "button" (call stuff from inspector)
+	public bool loop = false;
 	
 	[ContextMenu("Make Spline C^1 Continuous")]
 	void MakeC1Continuous() {
 		// this literally just makes all the joins into "mirrored" joins
-		// it just averages out the two you have after
-		//
 		// https://youtu.be/jvPPXbo87ds?t=1180
-		RoadNode[] theNodes = nodes.ToArray();
-		for (int i = 1; i < nodes.Count - 1; i++) {
+		RoadKnot[] theNodes = knots.ToArray();
+		for (int i = 1; i < knots.Count; i++) {
 			theNodes[i].anchor1 = 2f * theNodes[i].position - theNodes[i - 1].anchor2;
 		}
-		nodes = new List<RoadNode>(theNodes);
+		if (loop) {
+			theNodes[0].anchor1 = 2f * theNodes[0].position - theNodes[theNodes.Length - 1].anchor2;
+		}
+		knots = new List<RoadKnot>(theNodes);
 	}
 	
 	void Start() { GenerateRoad(); }
 	
-	void Update() {
-		
-	}
-	
 	public Vector3[] GetVertexArray() {
-		int vertexCount = (nodes.Count - 1) * 3 + 1;
+		int vertexCount = loop
+			? (knots.Count * 3)
+			: ((knots.Count - 1) * 3 + 1);
 		Vector3[] vertices = new Vector3[vertexCount];
 		
-		for (int i = 0; i < nodes.Count; i++) {
-			vertices[i * 3] = nodes[i].position;
-			if (i >= nodes.Count - 1) continue;
+		for (int i = 0; i < knots.Count; i++) {
+			vertices[i * 3] = knots[i].position;
+			if (!loop && i >= knots.Count - 1) continue;
 			
-			vertices[i * 3 + 1] = nodes[i].anchor1;
-			vertices[i * 3 + 2] = nodes[i].anchor2;
+			vertices[i * 3 + 1] = knots[i].anchor1;
+			vertices[i * 3 + 2] = knots[i].anchor2;
 		}
 		
 		return vertices;
+	}
+	
+	public float GetProgressFromTriangleIndex(int tri) {
+		if (loop) {
+			return tri / (float)(knots.Count * splineIterationsPerKnot * 6);
+		} else {
+			return tri / (float)(((knots.Count - 1) * splineIterationsPerKnot * 6) - 1);
+		}
 	}
 	
 	public void GenerateRoad() {
@@ -71,16 +73,18 @@ public class RoadGenerator : MonoBehaviour {
 		List<Vector3> meshNormals = new List<Vector3>();
 		List<Vector2> meshUVs = new List<Vector2>();
 		
-		meshIndices.Add(0);
-		meshIndices.Add(1);
-		meshIndices.Add(2);
+		// { // Start cap
+		// 	meshIndices.Add(0);
+		// 	meshIndices.Add(1);
+		// 	meshIndices.Add(2);
+		// }
 		
-		var thing = Spline.CalculateSpline(splineType, vertices, splineIterationsPerKnot, ResultType.Position)
-			.Zip(Spline.CalculateSpline(splineType, vertices, splineIterationsPerKnot, ResultType.Tangent), (a, b) => (a, b));
+		var thing = Spline.GetPoints(vertices, splineIterationsPerKnot, loop, splineType, ResultType.Position)
+			.Zip(Spline.GetPoints(vertices, splineIterationsPerKnot, loop, splineType, ResultType.Tangent), (a, b) => (a, b));
 		foreach ((Vector3 pos, Vector3 tan) in thing) {
 			int startIndex = meshVertices.Count - 3;
 			if (meshVertices.Count > 0) {
-				int[][] triangles = new int[][] {
+				int[][] genTriangles = new int[][] {
 					new int[] { 0, 3, 1 }, // Top face
 					new int[] { 1, 3, 4 },
 					new int[] { 1, 4, 2 }, // Left face
@@ -89,7 +93,7 @@ public class RoadGenerator : MonoBehaviour {
 					new int[] { 3, 2, 5 },
 				};
 				
-				foreach (int[] tri in triangles)
+				foreach (int[] tri in genTriangles)
 					foreach (int i in tri)
 						meshIndices.Add(startIndex + i);
 			}
@@ -97,37 +101,39 @@ public class RoadGenerator : MonoBehaviour {
 			// makes a quaternion such that
 			// look * Vector3.forward = tan
 			// and it'll always be up
-			Quaternion look = Quaternion.LookRotation(tan);
+			Quaternion look = Quaternion.LookRotation(tan, Vector3.up);
 			
-			meshVertices.Add(pos + (look * Vector3.left * roadWidth / 2));
-			meshVertices.Add(pos + (look * Vector3.right * roadWidth / 2));
-			meshVertices.Add(pos + (look * Vector3.down * roadHeight));
+			Vector3[] genVertices = new Vector3[] {
+				Vector3.left  * roadWidth / 2f,
+				Vector3.right * roadWidth / 2f,
+				Vector3.down  * roadHeight
+			};
+			
+			foreach (Vector3 vert in genVertices)
+				meshVertices.Add(pos + look * vert);
 			
 			Vector3 normal = look * Vector3.up;
-			meshNormals.Add(Vector3.Slerp(normal, look * Vector3.left, 0.1f));
-			meshNormals.Add(Vector3.Slerp(normal, look * Vector3.right, 0.1f));
+			meshNormals.Add(Vector3.Slerp(normal, look * Vector3.left, 1/4f));
+			meshNormals.Add(Vector3.Slerp(normal, look * Vector3.right, 1/4f));
 			meshNormals.Add(-normal);
 			
-			float v = (meshUVs.Count / 3) % 2;
-			meshUVs.Add(new Vector2(0f, v));
-			meshUVs.Add(new Vector2(1f, v));
-			meshUVs.Add(new Vector2(0.5f, v));
+			float v = meshUVs.Count / 3f;
+			float vv = (v / splineIterationsPerKnot) * 12f;
+			meshUVs.Add(new Vector2(0f, vv));
+			meshUVs.Add(new Vector2(1f, vv));
+			meshUVs.Add(new Vector2(0.5f, vv));
 		}
 		
-		{
-			int startIndex = meshVertices.Count - 3;
-			meshIndices.Add(startIndex + 2);
-			meshIndices.Add(startIndex + 1);
-			meshIndices.Add(startIndex + 0);
-		}
-		
-		// foreach (var v in meshVertices) Debug.Log(v);
-		// foreach (var v in meshIndices) Debug.Log(v);
+		// { // End cap
+		// 	int startIndex = meshVertices.Count - 3;
+		// 	meshIndices.Add(startIndex + 2);
+		// 	meshIndices.Add(startIndex + 1);
+		// 	meshIndices.Add(startIndex + 0);
+		// }
 		
 		mesh.SetVertices(meshVertices);
 		mesh.SetUVs(0, meshUVs);
 		mesh.SetNormals(meshNormals);
-		// mesh.RecalculateNormals();
 		mesh.SetIndices(meshIndices, MeshTopology.Triangles, 0);
 		
 		meshFilter.mesh = mesh;

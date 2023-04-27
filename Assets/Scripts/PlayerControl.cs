@@ -18,11 +18,6 @@ public class PlayerControl : MonoBehaviour {
 	[Tooltip("The maximum velocity allowed for falling, in units per second.")]
 	public float terminalFallVelocity = -12f;
 	
-	[Tooltip("The maximum allowed jumps, possibly in mid-air, before the player must land safely to jump again.")]
-	public int maximumJumps = 2;
-	
-	private int remainingJumps = 0;
-	
 	private Vector3 movementVelocity, movementAcceleration;
 	
 	private float upward = -4f;
@@ -69,6 +64,9 @@ public class PlayerControl : MonoBehaviour {
 	private PlayerSoul soul;
 	// more like "sole" cuz the player's pivot position is their feet lmao!!!
 	
+	[Range(0f, 1f)]
+	public float debugTrackProgress;
+	
 	void Start() {
 		cc = GetComponent<CharacterController>();
 		
@@ -82,7 +80,6 @@ public class PlayerControl : MonoBehaviour {
 		// https://youtu.be/PEHtceu7FBw
 		
 		leanEulerRotation = Vector3.zero;
-		remainingJumps = maximumJumps;
 		
 		// Create "soul" that possesses moving objects
 		GameObject soulGo = new GameObject("Soul");
@@ -137,6 +134,10 @@ public class PlayerControl : MonoBehaviour {
 					lastFloor = shit.transform;
 					soul.AttachTo(lastFloor);
 				}
+		RoadGenerator maybe = shit.transform.GetComponent<RoadGenerator>();
+		if (maybe != null) {
+			debugTrackProgress=maybe.GetProgressFromTriangleIndex(shit.triangleIndex);
+		}
 			}
 			// (^This code packs the boolean of "if the cast hit or not" with
 			//  the cast's hit data both into one nullable variable, which
@@ -179,9 +180,6 @@ public class PlayerControl : MonoBehaviour {
 			if (Input.GetButton("Jump") && upward < Mathf.Epsilon) tryJump = true;
 			
 			if (justLanded) {
-				// recover jumps we lost in air
-				remainingJumps = maximumJumps;
-				
 				// and recoil a bit from the landing
 				// (squish amount can be negative. it's fun)
 				if (upward < 1f) stretchAmount = -1/2f;
@@ -190,10 +188,6 @@ public class PlayerControl : MonoBehaviour {
 			upward = 0f;
 		} else {
 			if (justLeftGround) {
-				// lose an implicit jump
-				// (this is how  double jump works in most games)
-				remainingJumps--;
-				
 				// Detach the soul from the platform we left.
 				soul.Detach();
 			}
@@ -214,16 +208,13 @@ public class PlayerControl : MonoBehaviour {
 		}
 	
 		if (tryJump) {
-			if (remainingJumps > 0) {
+			if (grounded) {
 				// Spawn the "Jump Effect" (ring that shrinks and disappears)
 				Instantiate(jumpEffect, transform.position, normalRotation);
 				
-				jumpSound.pitch = Mathf.Lerp(1.3f, 1f, remainingJumps / (float)maximumJumps);
+				jumpSound.pitch = 1f;
 				jumpSound.volume = 1f;
 				jumpSound.Play();
-				
-				// Lose a jump
-				remainingJumps--;
 				
 				// Stretch out
 				stretchAmount = 1f;
