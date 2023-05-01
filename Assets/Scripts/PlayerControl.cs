@@ -3,14 +3,20 @@ using System.Collections.Generic;
 using UnityEngine;
 
 public class PlayerControl : MonoBehaviour {
+	const float REVS_TO_DEGS = 360f;
+	const float DEGS_TO_REVS = 1f/360f;
+	
 	private CharacterController cc;
 	
 	private AudioSource jumpSound;
 	
 	[Header("Movement")]
 	
-	[Tooltip("The movement speed, in units per second probably.")]
-	public float movementSpeed = 8f;
+	[Tooltip("...in Units/Second")]
+	public float movementSpeed = 4f;
+	
+	[Tooltip("...in Revolutions/Second")]
+	public float rotateSpeed = 3f;
 	
 	[Tooltip("The jump height, in units per second -- but no promises made that the player jumps to this height, as gravity is a force that exists. Treat it as a vague \"jump power\" slider maybe?")]
 	public float jumpHeight = 10f;
@@ -18,8 +24,9 @@ public class PlayerControl : MonoBehaviour {
 	[Tooltip("The maximum velocity allowed for falling, in units per second.")]
 	public float terminalFallVelocity = -12f;
 	
-	private Vector3 movementVelocity, movementAcceleration;
+	private float movementVelocity;
 	
+	private float forward = 0f;
 	private float upward = -4f;
 	
 	[Header("Juice")]
@@ -117,6 +124,19 @@ public class PlayerControl : MonoBehaviour {
 		// // with the radius of the sphere included in the length:
 		// Debug.DrawRay(transform.position + cc.center, Vector3.down * (castLength + cc.radius));
 		
+		RaycastHit? roadHit = null; {
+			RaycastHit shit;
+			if (Physics.Raycast(
+				transform.position + cc.center,
+				Vector3.down, out shit, 16f
+			)) roadHit = shit;
+		}
+		
+		RoadGenerator road = roadHit?.transform?.GetComponent<RoadGenerator>();
+		if (road != null) {
+			debugTrackProgress = road.GetProgressFromTriangleIndex(roadHit.Value.triangleIndex);
+		}
+		
 		RaycastHit? hit = null; {
 			// Option<T> has spoiled me, in terms of interface design.
 			// Now I'm chasing its elegant code even when it's missing.
@@ -134,10 +154,6 @@ public class PlayerControl : MonoBehaviour {
 					lastFloor = shit.transform;
 					soul.AttachTo(lastFloor);
 				}
-		RoadGenerator maybe = shit.transform.GetComponent<RoadGenerator>();
-		if (maybe != null) {
-			debugTrackProgress=maybe.GetProgressFromTriangleIndex(shit.triangleIndex);
-		}
 			}
 			// (^This code packs the boolean of "if the cast hit or not" with
 			//  the cast's hit data both into one nullable variable, which
@@ -164,8 +180,16 @@ public class PlayerControl : MonoBehaviour {
 		).normalized;
 		
 		Vector2 acceleration = wasd;
-		
 		bool moving = !Mathf.Approximately(acceleration.sqrMagnitude, 0f);
+		
+		float rotateAxis = Input.GetAxis("Horizontal");
+		float movementAxis = Input.GetAxis("Vertical");
+		
+		float rotateAmount = rotateAxis * rotateSpeed * REVS_TO_DEGS;
+		transform.Rotate(Vector3.up, rotateAmount * Time.deltaTime);
+		
+		float movementAmount = movementAxis * movementSpeed;
+		
 		
 		stretchAmount = Mathf.SmoothDamp(
 			stretchAmount, 0f,
@@ -255,13 +279,8 @@ public class PlayerControl : MonoBehaviour {
 		scalePivot.localScale = Vector3.LerpUnclamped(Vector3.one, stretchVector, stretchAmount);
 		rotationPivot.localEulerAngles = leanEulerRotation;
 		
-		Vector3 acceleration3 = new Vector3(acceleration.x, 0f, acceleration.y);
 		
-		movementVelocity += acceleration3 * Time.deltaTime;
-		movementVelocity *= Mathf.Pow(0.9f, Time.deltaTime * 60f);
-		
-		// hack during development
-		Vector3 movement = movementVelocity * movementSpeed * (1f/.11f);
+		Vector3 movement = Vector3.forward * movementAmount;
 		movement = transform.localRotation * movement;
 		if (grounded)
 			movement = AdjustVelocityToNormal(movement, normal, stolenSlopeLimit);

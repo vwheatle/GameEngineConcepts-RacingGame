@@ -64,9 +64,9 @@ public class BlobShadow : MonoBehaviour {
 				// 	: rayHit
 			).Value;
 			
-			transform.localRotation = Quaternion.FromToRotation(Vector3.up, hit.normal);
-			if (Mathf.Abs(Quaternion.Angle(hit.transform.rotation, transform.rotation)) > 40f)
-				transform.localRotation = Quaternion.identity; // lazy hack
+			transform.rotation = Quaternion.FromToRotation(Vector3.up, hit.normal);
+			// if (Mathf.Abs(Quaternion.Angle(hit.transform.rotation, transform.rotation)) > 40f)
+			// 	transform.localRotation = Quaternion.identity; // lazy hack
 			
 			transform.position = hit.point + Vector3.up * offset;
 		}

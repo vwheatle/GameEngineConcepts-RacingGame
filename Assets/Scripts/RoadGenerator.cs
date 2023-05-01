@@ -20,6 +20,8 @@ public class RoadGenerator : MonoBehaviour {
 	
 	public bool loop = false;
 	
+	private int meshLastSegmentIndex;
+	
 	[ContextMenu("Make Spline C^1 Continuous")]
 	void MakeC1Continuous() {
 		// this literally just makes all the joins into "mirrored" joins
@@ -32,6 +34,13 @@ public class RoadGenerator : MonoBehaviour {
 			theNodes[0].anchor1 = 2f * theNodes[0].position - theNodes[theNodes.Length - 1].anchor2;
 		}
 		knots = new List<RoadKnot>(theNodes);
+	}
+	
+	[ContextMenu("Rotate Nodes")]
+	void RotateNodes() {
+		RoadKnot zero = knots[0];
+		knots.RemoveAt(0);
+		knots.Add(zero);
 	}
 	
 	void Start() { GenerateRoad(); }
@@ -61,6 +70,40 @@ public class RoadGenerator : MonoBehaviour {
 		}
 	}
 	
+	public int AddRoadSegment(
+		ref List<Vector3> meshVertices,
+		ref List<Vector3> meshNormals,
+		ref List<Vector3> meshUVs,
+		Vector3 position,
+		Quaternion rotation
+	) {
+		Vector3[] vertices = new Vector3[] {
+			Vector3.left  * roadWidth / 2f,
+			Vector3.right * roadWidth / 2f,
+			Vector3.down  * roadHeight
+		};
+		foreach (Vector3 vertex in vertices)
+			meshVertices.Add(position + rotation * vertex);
+		// mid-refactoring, sorry!!
+		
+		return 0;
+	}
+	
+	private static int[] RoadSegmentConnection(int prevIndex, int nextIndex) =>
+		new int[] {
+			// Top face
+			prevIndex + 0, nextIndex + 0, prevIndex + 1,
+			prevIndex + 1, nextIndex + 0, nextIndex + 1,
+			
+			// Left face
+			prevIndex + 1, nextIndex + 1, prevIndex + 2,
+			prevIndex + 2, nextIndex + 1, nextIndex + 2,
+			
+			// Right face
+			prevIndex + 0, prevIndex + 2, nextIndex + 0,
+			nextIndex + 0, prevIndex + 2, nextIndex + 2,
+		};
+	
 	public void GenerateRoad() {
 		MeshFilter meshFilter = GetComponent<MeshFilter>();
 		MeshCollider meshCollider = GetComponent<MeshCollider>();
@@ -82,20 +125,10 @@ public class RoadGenerator : MonoBehaviour {
 		var thing = Spline.GetPoints(vertices, splineIterationsPerKnot, loop, splineType, ResultType.Position)
 			.Zip(Spline.GetPoints(vertices, splineIterationsPerKnot, loop, splineType, ResultType.Tangent), (a, b) => (a, b));
 		foreach ((Vector3 pos, Vector3 tan) in thing) {
-			int startIndex = meshVertices.Count - 3;
 			if (meshVertices.Count > 0) {
-				int[][] genTriangles = new int[][] {
-					new int[] { 0, 3, 1 }, // Top face
-					new int[] { 1, 3, 4 },
-					new int[] { 1, 4, 2 }, // Left face
-					new int[] { 2, 4, 5 },
-					new int[] { 0, 2, 3 }, // Right face
-					new int[] { 3, 2, 5 },
-				};
-				
-				foreach (int[] tri in genTriangles)
-					foreach (int i in tri)
-						meshIndices.Add(startIndex + i);
+				meshIndices.AddRange(
+					RoadSegmentConnection(meshVertices.Count - 3, meshVertices.Count)
+				);
 			}
 			
 			// makes a quaternion such that
@@ -103,13 +136,13 @@ public class RoadGenerator : MonoBehaviour {
 			// and it'll always be up
 			Quaternion look = Quaternion.LookRotation(tan, Vector3.up);
 			
-			Vector3[] genVertices = new Vector3[] {
+			Vector3[] segVertices = new Vector3[] {
 				Vector3.left  * roadWidth / 2f,
 				Vector3.right * roadWidth / 2f,
 				Vector3.down  * roadHeight
 			};
 			
-			foreach (Vector3 vert in genVertices)
+			foreach (Vector3 vert in segVertices)
 				meshVertices.Add(pos + look * vert);
 			
 			Vector3 normal = look * Vector3.up;
