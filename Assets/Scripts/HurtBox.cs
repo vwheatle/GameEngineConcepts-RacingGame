@@ -4,7 +4,13 @@ using UnityEngine;
 
 public class HurtBox : MonoBehaviour {
 	void OnTriggerEnter(Collider other) {
-		if (other.CompareTag("Player"))
-			LevelManager.the.SendMessage("Die");
+		if (other.CompareTag("Player")) {
+			PlayerControl po = other.GetComponent<PlayerControl>();
+			if (po.aiPlayer) {
+				po.enabled = false;
+			} else {
+				LevelManager.the.SendMessage("Die");
+			}
+		}
 	}
 }

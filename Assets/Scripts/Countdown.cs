@@ -22,7 +22,7 @@ public class Countdown : MonoBehaviour {
 		MeshRenderer renderer = GetComponent<MeshRenderer>();
 		MeshFilter filter = GetComponent<MeshFilter>();
 		
-		transform.position = Camera.main.ViewportToWorldPoint(new Vector3(0.5f, 0.5f, 4f), Camera.MonoOrStereoscopicEye.Mono);
+		transform.position = Camera.main.ViewportToWorldPoint(new Vector3(0.5f, 0.75f, 4f), Camera.MonoOrStereoscopicEye.Mono);
 		transform.forward = -Camera.main.transform.forward;
 		renderer.enabled = true;
 		

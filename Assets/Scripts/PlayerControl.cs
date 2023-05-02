@@ -12,11 +12,17 @@ public class PlayerControl : MonoBehaviour {
 	
 	[Header("Movement")]
 	
+	public bool aiPlayer = false;
+	
 	[Tooltip("...in Units/Second")]
 	public float movementSpeed = 4f;
 	
+	public float timeToMaxSpeed = 0.75f;
+	
 	[Tooltip("...in Revolutions/Second")]
 	public float rotateSpeed = 3f;
+	
+	public float timeToMaxSteer = 0.5f;
 	
 	[Tooltip("The jump height, in units per second -- but no promises made that the player jumps to this height, as gravity is a force that exists. Treat it as a vague \"jump power\" slider maybe?")]
 	public float jumpHeight = 10f;
@@ -25,8 +31,10 @@ public class PlayerControl : MonoBehaviour {
 	public float terminalFallVelocity = -12f;
 	
 	private float movementVelocity;
+	private float steeringVelocity;
 	
 	private float forward = 0f;
+	private float steer = 0f;
 	private float upward = 0f;
 	
 	[Header("Juice")]
@@ -71,8 +79,8 @@ public class PlayerControl : MonoBehaviour {
 	private PlayerSoul soul;
 	// more like "sole" cuz the player's pivot position is their feet lmao!!!
 	
-	[Range(0f, 1f)]
-	public float debugTrackProgress;
+	private RoadGenerator lastRoad;
+	public float lastRoadPosition = 0f;
 	
 	void Start() {
 		cc = GetComponent<CharacterController>();
@@ -91,6 +99,27 @@ public class PlayerControl : MonoBehaviour {
 		// Create "soul" that possesses moving objects
 		GameObject soulGo = new GameObject("Soul");
 		soul = soulGo.AddComponent<PlayerSoul>();
+	}
+	
+	Vector2 GetAiMovement() {
+		if (!lastRoad) return Vector2.up;
+		
+		(Vector3 currPos, Vector3 currTan) = lastRoad.GetPositionTangentPairAt(lastRoadPosition);
+		(Vector3 nextPos, Vector3 nextTan) = lastRoad.GetPositionTangentPairAt(lastRoadPosition + 1/128f);
+		
+		Vector3 effectivePosition = transform.position + transform.forward * (movementVelocity / 2f);
+		
+		Vector3 playerOffsetGlobal = Vector3.ProjectOnPlane(effectivePosition - currPos, currTan);
+		Quaternion fix = Quaternion.Inverse(Quaternion.LookRotation(currTan));
+		Vector3 playerOffset = fix * playerOffsetGlobal;
+		
+		float playerAngle = Vector3.Angle(transform.forward, currTan);
+		
+		float movementAmount = 1f;
+		
+		float rotateAmount = Mathf.SmoothStep(-1f, 1f, playerAngle / 5f);
+		
+		return new Vector2(rotateAmount, movementAmount);
 	}
 
 	void Update() {
@@ -134,7 +163,8 @@ public class PlayerControl : MonoBehaviour {
 		
 		RoadGenerator road = roadHit?.transform?.GetComponent<RoadGenerator>();
 		if (road != null) {
-			debugTrackProgress = road.GetProgressFromTriangleIndex(roadHit.Value.triangleIndex);
+			lastRoad = road;
+			lastRoadPosition = lastRoad.GetProgressFromTriangleIndex(roadHit.Value.triangleIndex);
 		}
 		
 		RaycastHit? hit = null; {
@@ -174,16 +204,16 @@ public class PlayerControl : MonoBehaviour {
 		// 	hit = null;
 		// }
 		
-		Vector2 wasd = new Vector2(
+		Vector2 wasd = aiPlayer ? GetAiMovement() : new Vector2(
 			Input.GetAxisRaw("Horizontal"),
 			Input.GetAxisRaw("Vertical")
-		).normalized;
+		);
 		
-		Vector2 acceleration = wasd;
+		Vector2 acceleration = wasd.normalized;
 		bool moving = !Mathf.Approximately(acceleration.sqrMagnitude, 0f);
 		
-		float rotateAxis = Input.GetAxis("Horizontal");
-		float movementAxis = Input.GetAxis("Vertical");
+		float rotateAxis = wasd.x;
+		float movementAxis = wasd.y;
 		
 		float rotateAmount = rotateAxis * rotateSpeed * REVS_TO_DEGS;
 		float movementAmount = movementAxis * movementSpeed;
@@ -195,11 +225,12 @@ public class PlayerControl : MonoBehaviour {
 			stretchRecoverSpeed
 		);
 		
-		bool tryJump = Input.GetButtonDown("Jump");
+		bool tryJump = !aiPlayer && Input.GetButtonDown("Jump");
 		
 		if (grounded) {
 			// Hack to allow easy bunny-hopping.
-			if (Input.GetButton("Jump") && upward < Mathf.Epsilon) tryJump = true;
+			bool jumpButton = aiPlayer ? (Random.value < 1f/512f) : Input.GetButton("Jump");
+			if (jumpButton && upward < Mathf.Epsilon) tryJump = true;
 			
 			if (justLanded) {
 				// and recoil a bit from the landing
@@ -280,13 +311,24 @@ public class PlayerControl : MonoBehaviour {
 		rotationPivot.localEulerAngles = leanEulerRotation;
 		
 		
-		Vector3 movement = Vector3.forward * movementAmount;
+		forward = Mathf.SmoothDamp(
+			forward, movementAmount,
+			ref movementVelocity,
+			timeToMaxSpeed / (moving ? 1f : 4f)
+		);
+		steer = Mathf.SmoothDamp(
+			steer, rotateAmount,
+			ref steeringVelocity,
+			timeToMaxSteer
+		);
+		
+		Vector3 movement = Vector3.forward * forward;
 		movement = transform.rotation * movement;
 		if (grounded)
 			movement = AdjustVelocityToNormal(movement, normal, stolenSlopeLimit);
 		movement.y += upward;
 		
-		transform.Rotate(Vector3.up, rotateAmount * Time.deltaTime);
+		transform.Rotate(Vector3.up, steer * Time.deltaTime);
 		
 		// TODO: maybe if the `soul.GetDeltaPosition()` is not equal to the last
 		// `soul.GetDeltaPosition()`, then it'll snap the player's position
