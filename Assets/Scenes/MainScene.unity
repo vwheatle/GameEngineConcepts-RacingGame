@@ -282,8 +282,9 @@ MonoBehaviour:
     anchor2: {x: 35.625, y: -31.125, z: 119.125}
   splineType: 0
   splineIterationsPerKnot: 48
-  roadWidth: 64
+  roadWidth: 32
   roadHeight: 3
+  wallHeight: 1.5
   loop: 1
 --- !u!33 &554958144
 MeshFilter:

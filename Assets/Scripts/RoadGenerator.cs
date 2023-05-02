@@ -18,6 +18,8 @@ public class RoadGenerator : MonoBehaviour {
 	public float roadWidth = 16f;
 	public float roadHeight = 6f;
 	
+	public float wallHeight = 1.5f;
+	
 	public bool loop = false;
 	
 	private int meshLastSegmentIndex;
@@ -64,44 +66,59 @@ public class RoadGenerator : MonoBehaviour {
 	
 	public float GetProgressFromTriangleIndex(int tri) {
 		if (loop) {
-			return tri / (float)(knots.Count * splineIterationsPerKnot * 6);
+			return tri / (float)(knots.Count * splineIterationsPerKnot * 10);
 		} else {
-			return tri / (float)(((knots.Count - 1) * splineIterationsPerKnot * 6) - 1);
+			return tri / (float)(((knots.Count - 1) * splineIterationsPerKnot * 10) - 1);
 		}
 	}
 	
 	public int AddRoadSegment(
 		ref List<Vector3> meshVertices,
 		ref List<Vector3> meshNormals,
-		ref List<Vector3> meshUVs,
+		ref List<Vector2> meshUVs,
 		Vector3 position,
 		Quaternion rotation
 	) {
+		int startIndex = meshVertices.Count;
+		
+		float roadWidth2 = roadWidth / 2f;
 		Vector3[] vertices = new Vector3[] {
-			Vector3.left  * roadWidth / 2f,
-			Vector3.right * roadWidth / 2f,
-			Vector3.down  * roadHeight
+			Vector3.left  * roadWidth2,
+			Vector3.right * roadWidth2,
+			Vector3.down  * roadHeight,
+			Vector3.left  * roadWidth2 + Vector3.up * wallHeight,
+			Vector3.right * roadWidth2 + Vector3.up * wallHeight
 		};
 		foreach (Vector3 vertex in vertices)
 			meshVertices.Add(position + rotation * vertex);
 		// mid-refactoring, sorry!!
 		
-		return 0;
+		return startIndex;
 	}
 	
 	private static int[] RoadSegmentConnection(int prevIndex, int nextIndex) =>
+		// These faces have to be ordered in a specific way because Unity uses
+		// the winding order of the triangle to determine its normal.
 		new int[] {
 			// Top face
-			prevIndex + 0, nextIndex + 0, prevIndex + 1,
-			prevIndex + 1, nextIndex + 0, nextIndex + 1,
+			prevIndex + 0, nextIndex + 0, prevIndex + 1, // a0 b0 a1
+			prevIndex + 1, nextIndex + 0, nextIndex + 1, // a1 b0 b1
 			
 			// Left face
-			prevIndex + 1, nextIndex + 1, prevIndex + 2,
-			prevIndex + 2, nextIndex + 1, nextIndex + 2,
+			prevIndex + 0, prevIndex + 2, nextIndex + 0, // a0 a2 b0
+			nextIndex + 0, prevIndex + 2, nextIndex + 2, // b0 a2 b2
 			
 			// Right face
-			prevIndex + 0, prevIndex + 2, nextIndex + 0,
-			nextIndex + 0, prevIndex + 2, nextIndex + 2,
+			prevIndex + 1, nextIndex + 1, prevIndex + 2, // a1 b1 a2
+			prevIndex + 2, nextIndex + 1, nextIndex + 2, // a2 b1 b2
+			
+			// Left wall
+			prevIndex + 3, nextIndex + 0, prevIndex + 0, // a3 b0 a0
+			prevIndex + 3, nextIndex + 3, nextIndex + 0, // a3 b3 b0
+			
+			// Right wall
+			prevIndex + 4, prevIndex + 1, nextIndex + 1, // a4 a1 b1
+			nextIndex + 4, prevIndex + 4, nextIndex + 1, // b4 a4 b1
 		};
 	
 	public void GenerateRoad() {
@@ -122,12 +139,13 @@ public class RoadGenerator : MonoBehaviour {
 		// 	meshIndices.Add(2);
 		// }
 		
+		int lastSegment = -1;
 		var thing = Spline.GetPoints(vertices, splineIterationsPerKnot, loop, splineType, ResultType.Position)
 			.Zip(Spline.GetPoints(vertices, splineIterationsPerKnot, loop, splineType, ResultType.Tangent), (a, b) => (a, b));
 		foreach ((Vector3 pos, Vector3 tan) in thing) {
-			if (meshVertices.Count > 0) {
+			if (lastSegment >= 0) {
 				meshIndices.AddRange(
-					RoadSegmentConnection(meshVertices.Count - 3, meshVertices.Count)
+					RoadSegmentConnection(lastSegment, meshVertices.Count)
 				);
 			}
 			
@@ -136,25 +154,27 @@ public class RoadGenerator : MonoBehaviour {
 			// and it'll always be up
 			Quaternion look = Quaternion.LookRotation(tan, Vector3.up);
 			
-			Vector3[] segVertices = new Vector3[] {
-				Vector3.left  * roadWidth / 2f,
-				Vector3.right * roadWidth / 2f,
-				Vector3.down  * roadHeight
-			};
-			
-			foreach (Vector3 vert in segVertices)
-				meshVertices.Add(pos + look * vert);
+			lastSegment = AddRoadSegment(
+				ref meshVertices,
+				ref meshNormals,
+				ref meshUVs,
+				pos, look
+			);
 			
 			Vector3 normal = look * Vector3.up;
 			meshNormals.Add(Vector3.Slerp(normal, look * Vector3.left, 1/4f));
 			meshNormals.Add(Vector3.Slerp(normal, look * Vector3.right, 1/4f));
 			meshNormals.Add(-normal);
+			meshNormals.Add(Vector3.Slerp(normal, look * Vector3.left, 1/4f));
+			meshNormals.Add(Vector3.Slerp(normal, look * Vector3.right, 1/4f));
 			
 			float v = meshUVs.Count / 3f;
 			float vv = (v / splineIterationsPerKnot) * 12f;
 			meshUVs.Add(new Vector2(0f, vv));
 			meshUVs.Add(new Vector2(1f, vv));
 			meshUVs.Add(new Vector2(0.5f, vv));
+			meshUVs.Add(new Vector2(0f, vv));
+			meshUVs.Add(new Vector2(1f, vv));
 		}
 		
 		// { // End cap
@@ -175,7 +195,7 @@ public class RoadGenerator : MonoBehaviour {
 	
 	// progress is from 0 to 1. I don't want you to have to think about knots.
 	public (Vector3, Vector3) GetPositionTangentPairAt(float progress) {
-		float u = ((progress % 1f) + 1f) % 1f * knots.Count;
+		float u = (((progress % 1f) + 1f) % 1f) * knots.Count;
 		Vector3[] vertices = GetVertexArray();
 		return (
 			transform.position + Spline.GetPoint(ref vertices, u, loop, splineType, ResultType.Position),

@@ -80,6 +80,7 @@ public class PlayerControl : MonoBehaviour {
 	// more like "sole" cuz the player's pivot position is their feet lmao!!!
 	
 	private RoadGenerator lastRoad;
+	[Range(0f, 1f)]
 	public float lastRoadPosition = 0f;
 	
 	void Start() {
@@ -105,18 +106,23 @@ public class PlayerControl : MonoBehaviour {
 		if (!lastRoad) return Vector2.up;
 		
 		(Vector3 currPos, Vector3 currTan) = lastRoad.GetPositionTangentPairAt(lastRoadPosition);
-		(Vector3 nextPos, Vector3 nextTan) = lastRoad.GetPositionTangentPairAt(lastRoadPosition + 1/128f);
+		(Vector3 nextPos, Vector3 nextTan) = lastRoad.GetPositionTangentPairAt(lastRoadPosition + 1/512f);
 		
-		Quaternion nextRotation = Quaternion.AngleAxis(steer, Vector3.up);
-		Vector3 nextPosition = transform.position + (transform.forward / 2f) + nextRotation * (transform.forward / 2f);
+		Quaternion nextRotation = Quaternion.AngleAxis(steer / 2f, Vector3.up);
+		Vector3 nextPosition = transform.position + nextRotation * transform.forward;
 		
-		Vector3 playerOffset = transform.worldToLocalMatrix * Vector3.ProjectOnPlane(nextPosition - nextPos, nextTan);
-		
-		float playerAngleOffset = Vector3.Angle(nextRotation * transform.forward, currTan) / 180f;
+		Vector3 playerOffsetGlobal = Vector3.ProjectOnPlane(nextPosition - nextPos, nextTan);
+		Quaternion reverse = Quaternion.FromToRotation(nextTan, Vector3.forward);
+		Vector3 playerOffset = reverse * playerOffsetGlobal;
 		
 		float movementAmount = 1f;
 		
-		float rotateAmount = -playerOffset.x / (lastRoad.roadWidth / 2f);
+		float rotateAmount = 0f;
+		if (playerOffset.x < -0.25f) {
+			rotateAmount = 1f;
+		} else if (playerOffset.x > 0.25f) {
+			rotateAmount = -1f;
+		}
 		
 		return new Vector2(rotateAmount, movementAmount);
 	}
@@ -228,7 +234,7 @@ public class PlayerControl : MonoBehaviour {
 		
 		if (grounded) {
 			// Hack to allow easy bunny-hopping.
-			bool jumpButton = aiPlayer ? (Random.value < 1f/512f) : Input.GetButton("Jump");
+			bool jumpButton = aiPlayer ? (Random.value < -1f /*1f/512f*/) : Input.GetButton("Jump");
 			if (jumpButton && upward < Mathf.Epsilon) tryJump = true;
 			
 			if (justLanded) {
