@@ -22,6 +22,9 @@ public class RoadGenerator : MonoBehaviour {
 	
 	public bool loop = false;
 	
+	// private int verticesPerSegment = 5;
+	private int trianglesPerSegment = 10;
+	
 	private int meshLastSegmentIndex;
 	
 	[ContextMenu("Make Spline C^1 Continuous")]
@@ -66,9 +69,9 @@ public class RoadGenerator : MonoBehaviour {
 	
 	public float GetProgressFromTriangleIndex(int tri) {
 		if (loop) {
-			return tri / (float)(knots.Count * splineIterationsPerKnot * 10);
+			return tri / (float)(knots.Count * splineIterationsPerKnot * trianglesPerSegment);
 		} else {
-			return tri / (float)(((knots.Count - 1) * splineIterationsPerKnot * 10) - 1);
+			return tri / (float)(((knots.Count - 1) * splineIterationsPerKnot * trianglesPerSegment) - 1);
 		}
 	}
 	
