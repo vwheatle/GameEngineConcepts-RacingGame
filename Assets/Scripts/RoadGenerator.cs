@@ -172,4 +172,14 @@ public class RoadGenerator : MonoBehaviour {
 		meshFilter.mesh = mesh;
 		meshCollider.sharedMesh = mesh;
 	}
+	
+	// progress is from 0 to 1. I don't want you to have to think about knots.
+	public (Vector3, Vector3) GetPositionTangentPairAt(float progress) {
+		float u = ((progress % 1f) + 1f) % 1f * knots.Count;
+		Vector3[] vertices = GetVertexArray();
+		return (
+			transform.position + Spline.GetPoint(ref vertices, u, loop, splineType, ResultType.Position),
+			Spline.GetPoint(ref vertices, u, loop, splineType, ResultType.Tangent)
+		);
+	}
 }

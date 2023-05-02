@@ -27,7 +27,7 @@ public class PlayerControl : MonoBehaviour {
 	private float movementVelocity;
 	
 	private float forward = 0f;
-	private float upward = -4f;
+	private float upward = 0f;
 	
 	[Header("Juice")]
 	
@@ -186,8 +186,6 @@ public class PlayerControl : MonoBehaviour {
 		float movementAxis = Input.GetAxis("Vertical");
 		
 		float rotateAmount = rotateAxis * rotateSpeed * REVS_TO_DEGS;
-		transform.Rotate(Vector3.up, rotateAmount * Time.deltaTime);
-		
 		float movementAmount = movementAxis * movementSpeed;
 		
 		
@@ -228,6 +226,8 @@ public class PlayerControl : MonoBehaviour {
 		if (LevelManager.the.state != LevelManager.State.Playing) {
 			wasd = Vector2.zero;
 			moving = false;
+			rotateAmount = 0f;
+			movementAmount = 0f;
 			tryJump = false;
 		}
 	
@@ -281,10 +281,12 @@ public class PlayerControl : MonoBehaviour {
 		
 		
 		Vector3 movement = Vector3.forward * movementAmount;
-		movement = transform.localRotation * movement;
+		movement = transform.rotation * movement;
 		if (grounded)
 			movement = AdjustVelocityToNormal(movement, normal, stolenSlopeLimit);
 		movement.y += upward;
+		
+		transform.Rotate(Vector3.up, rotateAmount * Time.deltaTime);
 		
 		// TODO: maybe if the `soul.GetDeltaPosition()` is not equal to the last
 		// `soul.GetDeltaPosition()`, then it'll snap the player's position

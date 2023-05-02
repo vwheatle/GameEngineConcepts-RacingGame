@@ -11,12 +11,16 @@ public class LevelManager : MonoBehaviour {
 	
 	public enum State { Intro, Playing, Dead }
 	
-	private State currentState = State.Playing;
+	private State currentState = State.Intro;
 	public State state { get => currentState; }
 	
 	void Awake() {
 		me = this;
 		player = GameObject.FindGameObjectWithTag("Player");
+	}
+	
+	void StartRace() {
+		currentState = State.Playing;
 	}
 	
 	void Die() {
