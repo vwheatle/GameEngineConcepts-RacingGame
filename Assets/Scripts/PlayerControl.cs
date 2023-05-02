@@ -107,17 +107,16 @@ public class PlayerControl : MonoBehaviour {
 		(Vector3 currPos, Vector3 currTan) = lastRoad.GetPositionTangentPairAt(lastRoadPosition);
 		(Vector3 nextPos, Vector3 nextTan) = lastRoad.GetPositionTangentPairAt(lastRoadPosition + 1/128f);
 		
-		Vector3 effectivePosition = transform.position + transform.forward * (movementVelocity / 2f);
+		Quaternion nextRotation = Quaternion.AngleAxis(steer, Vector3.up);
+		Vector3 nextPosition = transform.position + (transform.forward / 2f) + nextRotation * (transform.forward / 2f);
 		
-		Vector3 playerOffsetGlobal = Vector3.ProjectOnPlane(effectivePosition - currPos, currTan);
-		Quaternion fix = Quaternion.Inverse(Quaternion.LookRotation(currTan));
-		Vector3 playerOffset = fix * playerOffsetGlobal;
+		Vector3 playerOffset = transform.worldToLocalMatrix * Vector3.ProjectOnPlane(nextPosition - nextPos, nextTan);
 		
-		float playerAngle = Vector3.Angle(transform.forward, currTan);
+		float playerAngleOffset = Vector3.Angle(nextRotation * transform.forward, currTan) / 180f;
 		
 		float movementAmount = 1f;
 		
-		float rotateAmount = Mathf.SmoothStep(-1f, 1f, playerAngle / 5f);
+		float rotateAmount = -playerOffset.x / (lastRoad.roadWidth / 2f);
 		
 		return new Vector2(rotateAmount, movementAmount);
 	}
