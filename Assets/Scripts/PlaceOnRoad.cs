@@ -18,7 +18,7 @@ public class PlaceOnRoad : MonoBehaviour {
 		} else {
 			transform.forward = tan.normalized;
 		}
-		Destroy(this); // don't need it anymore! lol
+		// Destroy(this); // don't need it anymore! lol
 	}
 	
 	void OnDrawGizmosSelected() {
