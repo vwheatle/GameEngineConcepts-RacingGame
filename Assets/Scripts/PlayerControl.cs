@@ -81,7 +81,7 @@ public class PlayerControl : MonoBehaviour {
 	
 	private RoadGenerator lastRoad;
 	[Range(0f, 1f)]
-	public float lastRoadPosition = 0f;
+	public float? lastRoadPosition;
 	
 	void Start() {
 		cc = GetComponent<CharacterController>();
@@ -100,13 +100,16 @@ public class PlayerControl : MonoBehaviour {
 		// Create "soul" that possesses moving objects
 		GameObject soulGo = new GameObject("Soul");
 		soul = soulGo.AddComponent<PlayerSoul>();
+		
+		lastRoadPosition = null;
 	}
 	
 	Vector2 GetAiMovement() {
 		if (!lastRoad) return Vector2.up;
+		float roadPos = lastRoadPosition.GetValueOrDefault();
 		
-		(Vector3 currPos, Vector3 currTan) = lastRoad.GetPositionTangentPairAt(lastRoadPosition);
-		(Vector3 nextPos, Vector3 nextTan) = lastRoad.GetPositionTangentPairAt(lastRoadPosition + 1/512f);
+		(Vector3 currPos, Vector3 currTan) = lastRoad.GetPositionTangentPairAt(roadPos);
+		(Vector3 nextPos, Vector3 nextTan) = lastRoad.GetPositionTangentPairAt(roadPos + 1/512f);
 		
 		Quaternion nextRotation = Quaternion.AngleAxis(steer + steeringVelocity, Vector3.up);
 		Vector3 nextPosition = transform.position + nextRotation * transform.forward;
